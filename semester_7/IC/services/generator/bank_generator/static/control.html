@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Керування навантаженням — BankMonitor</title>
+<style>
+  :root {
+    --bg: #f5f6f8; --card: #ffffff; --text: #1c2230; --muted: #5d6878;
+    --border: #d9dee6; --accent: #2457d6; --accent-bg: #e9efff; --danger: #b3261e; --ok: #1d7a46;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #13161b; --card: #1c2027; --text: #e5e8ed; --muted: #9ba5b3;
+      --border: #2d333d; --accent: #78a6ff; --accent-bg: #1d2840; --danger: #ff8a80; --ok: #6fd39b;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 980px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 26px; margin: 0 0 4px; }
+  h2 { font-size: 17px; margin: 0 0 12px; }
+  .sub { color: var(--muted); margin: 0 0 20px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+          padding: 16px; margin-bottom: 16px; }
+  .state { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+  .state span { display: block; color: var(--muted); font-size: 13px; }
+  .state strong { font-size: 18px; overflow-wrap: anywhere; }
+  .running { color: var(--ok); } .paused { color: var(--danger); }
+  .scenarios { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+  button.scenario { display: flex; flex-direction: column; gap: 6px; text-align: left; cursor: pointer;
+                    font: inherit; color: var(--text); background: var(--card);
+                    border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
+  button.scenario:hover { border-color: var(--accent); }
+  button.scenario.active { border-color: var(--accent); background: var(--accent-bg);
+                           box-shadow: inset 0 0 0 1px var(--accent); }
+  .scenario .title { font-weight: 600; }
+  .scenario .desc { color: var(--muted); font-size: 14px; }
+  .scenario .alerts { font-size: 13px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+  label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+  input { font: inherit; width: 150px; padding: 6px 8px; color: var(--text); background: var(--card);
+          border: 1px solid var(--border); border-radius: 6px; }
+  button.action { font: inherit; cursor: pointer; padding: 7px 14px; border-radius: 6px;
+                  color: #fff; background: var(--accent); border: 1px solid var(--accent); }
+  button.action.secondary { color: var(--accent); background: transparent; }
+  .error { color: var(--danger); min-height: 1.5em; margin: 10px 0 0; }
+  nav ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px 18px; }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Керування навантаженням</h1>
+  <p class="sub">BankMonitor: генератор переказів і сценарії аномалій роботи бази даних.</p>
+
+  <section class="card" aria-live="polite">
+    <div class="state">
+      <div><span>Сценарій</span><strong id="scenario">—</strong></div>
+      <div><span>Інтенсивність</span><strong id="rate">—</strong></div>
+      <div><span>Стан</span><strong id="running">—</strong></div>
+      <div><span>Автоповернення</span><strong id="countdown">—</strong></div>
+    </div>
+    <p class="error" id="error" role="alert"></p>
+  </section>
+
+  <section class="card">
+    <h2>Сценарії</h2>
+    <div class="scenarios">
+<!-- SCENARIO_BUTTONS -->
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Параметри</h2>
+    <div class="controls">
+      <label>Автоповернення через, с
+        <input id="ttl" type="number" min="5" max="3600" step="1" value="120"></label>
+      <label>Інтенсивність, операцій/с
+        <input id="rate-input" type="number" min="0" max="200" step="1"></label>
+      <button class="action" id="apply-rate" type="button">Застосувати</button>
+      <button class="action secondary" id="toggle" type="button">Пауза</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Куди дивитися</h2>
+    <nav>
+      <ul>
+        <li><a href="/grafana/d/bank-overview">Огляд</a></li>
+        <li><a href="/grafana/d/bank-db">PostgreSQL</a></li>
+        <li><a href="/grafana/d/bank-app">Застосунок: перекази</a></li>
+        <li><a href="/grafana/d/bank-queue">RabbitMQ</a></li>
+        <li><a href="/grafana/d/bank-logs">Логи</a></li>
+        <li><a href="/grafana/d/bank-traces">Трейси</a></li>
+        <li><a href="/prometheus/alerts">Алерти Prometheus</a></li>
+      </ul>
+    </nav>
+  </section>
+</main>
+
+<script>
+  const titles = {};
+  document.querySelectorAll('button.scenario').forEach((button) => {
+    titles[button.dataset.scenario] = button.querySelector('.title').textContent;
+  });
+  let state = null;
+
+  function showError(text) {
+    document.getElementById('error').textContent = text;
+  }
+
+  async function request(method, body) {
+    const options = { method, credentials: 'same-origin', headers: {} };
+    if (body !== undefined) {
+      options.headers['Content-Type'] = 'application/json';
+      options.body = JSON.stringify(body);
+    }
+    const response = await fetch('api/state', options);
+    if (!response.ok) {
+      let detail = response.statusText;
+      try {
+        const data = await response.json();
+        detail = typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail);
+      } catch (ignored) { /* not JSON */ }
+      throw new Error(response.status + ': ' + detail);
+    }
+    return response.json();
+  }
+
+  function renderCountdown() {
+    const element = document.getElementById('countdown');
+    if (!state || !state.expires_at) { element.textContent = 'немає'; return; }
+    const seconds = Math.max(0, Math.round((new Date(state.expires_at) - new Date()) / 1000));
+    element.textContent = 'через ' + seconds + ' с';
+  }
+
+  function render() {
+    document.getElementById('scenario').textContent = titles[state.scenario] || state.scenario;
+    document.getElementById('rate').textContent = state.rate + ' операцій/с';
+    const running = document.getElementById('running');
+    running.textContent = state.running ? 'працює' : 'пауза';
+    running.className = state.running ? 'running' : 'paused';
+    document.getElementById('toggle').textContent = state.running ? 'Пауза' : 'Продовжити';
+    const rateInput = document.getElementById('rate-input');
+    if (document.activeElement !== rateInput && rateInput.value === '') rateInput.value = state.rate;
+    document.querySelectorAll('button.scenario').forEach((button) => {
+      button.classList.toggle('active', button.dataset.scenario === state.scenario);
+    });
+    renderCountdown();
+  }
+
+  async function refresh() {
+    try {
+      state = await request('GET');
+      showError('');
+      render();
+    } catch (error) {
+      showError('Не вдалося отримати стан: ' + error.message);
+    }
+  }
+
+  async function change(patch) {
+    try {
+      state = await request('PUT', patch);
+      showError('');
+      render();
+    } catch (error) {
+      showError('Зміну не застосовано: ' + error.message);
+    }
+  }
+
+  document.querySelectorAll('button.scenario').forEach((button) => {
+    button.addEventListener('click', () => {
+      const patch = { scenario: button.dataset.scenario };
+      const ttl = parseInt(document.getElementById('ttl').value, 10);
+      if (patch.scenario !== 'normal' && ttl) patch.ttl_s = ttl;
+      change(patch);
+    });
+  });
+  document.getElementById('apply-rate').addEventListener('click', () => {
+    change({ rate: Number(document.getElementById('rate-input').value) });
+  });
+  document.getElementById('toggle').addEventListener('click', () => {
+    if (state) change({ running: !state.running });
+  });
+
+  refresh();
+  setInterval(refresh, 2000);
+  setInterval(renderCountdown, 1000);
+</script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+pytest==9.2.0
+requests==2.34.2
+ruff==0.17.4
+prometheus-client==0.26.0
+psycopg[binary]==3.3.8
+pika==1.4.4
+fastapi==0.162.5
+uvicorn==0.54.0
+httpx==0.28.1
+python-multipart==0.0.33
+bcrypt==5.0.0
+PyJWT==2.15.1
+opentelemetry-sdk==1.45.2
+opentelemetry-exporter-otlp-proto-grpc==1.45.2
+opentelemetry-instrumentation-psycopg==0.66b2
+opentelemetry-instrumentation-pika==0.66b2
+opentelemetry-instrumentation-fastapi==0.66b2

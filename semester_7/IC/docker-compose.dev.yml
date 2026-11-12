@@ -1,0 +1,26 @@
+# Development overlay: publishes service ports on 127.0.0.1 only, for debugging.
+# Used by `make up-dev`. Each stage adds its services here.
+services:
+  postgres:
+    # 15432 on the host: 5432 is often taken by a locally installed PostgreSQL.
+    ports: ["127.0.0.1:15432:5432"]
+  rabbitmq:
+    ports: ["127.0.0.1:15672:15672"]
+  worker:
+    ports: ["127.0.0.1:8001:8000"]
+  generator:
+    ports: ["127.0.0.1:8002:8000"]
+  auth:
+    ports: ["127.0.0.1:8003:8000"]
+  postgres-exporter:
+    ports: ["127.0.0.1:9187:9187"]
+  prometheus:
+    ports: ["127.0.0.1:9090:9090"]
+  grafana:
+    ports: ["127.0.0.1:3000:3000"]
+  loki:
+    ports: ["127.0.0.1:3100:3100"]
+  alloy:
+    ports: ["127.0.0.1:12345:12345"]
+  tempo:
+    ports: ["127.0.0.1:3200:3200"]

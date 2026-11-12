@@ -1,0 +1,22 @@
+# Tooling configuration for the whole repository (linter and test runner).
+# The installable package lives in services/common/pyproject.toml.
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+# Ruff 0.17 also formats code blocks inside *.md by default; the snippets in docs/
+# are illustrations of the plan, not code, so only Python files are checked.
+include = ["*.py", "**/pyproject.toml"]
+src = ["services/common", "services/worker", "services/generator", "services/auth", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["bankmon_common", "bank_worker", "bank_generator", "bank_auth"]
+
+[tool.pytest.ini_options]
+addopts = "-p no:cacheprovider -ra"
+markers = [
+    "slow: long-running scenario tests that take minutes",
+]

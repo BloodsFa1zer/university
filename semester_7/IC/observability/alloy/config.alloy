@@ -1,0 +1,62 @@
+// Alloy: collects the logs of every container of the bankmon project and sends them
+// to Loki (docs/00-common.md §6.11). Labels: service, container and — only for the
+// JSON logs of our own services — level.
+
+discovery.docker "bankmon" {
+	host = "unix:///var/run/docker.sock"
+	// Recreated containers get a new id; find them within seconds, not the default minute.
+	refresh_interval = "10s"
+
+	// Only this compose project, not every container on the machine (G6).
+	filter {
+		name   = "label"
+		values = ["com.docker.compose.project=bankmon"]
+	}
+}
+
+discovery.relabel "bankmon" {
+	targets = []
+
+	rule {
+		source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+		target_label  = "service"
+	}
+
+	// Docker names start with "/": "/bankmon-worker-1" becomes "bankmon-worker-1".
+	rule {
+		source_labels = ["__meta_docker_container_name"]
+		regex         = "/(.*)"
+		target_label  = "container"
+	}
+}
+
+loki.source.docker "bankmon" {
+	host          = "unix:///var/run/docker.sock"
+	targets       = discovery.docker.bankmon.targets
+	relabel_rules = discovery.relabel.bankmon.rules
+	forward_to    = [loki.process.levels.receiver]
+}
+
+loki.process "levels" {
+	forward_to = [loki.write.loki.receiver]
+
+	// Our services write one JSON object per line with a `level` field (§6.11).
+	// Other components (Grafana, nginx, PostgreSQL…) keep their lines without the label.
+	stage.match {
+		selector = "{service=~\"worker|generator|auth\"}"
+
+		stage.json {
+			expressions = {level = "level"}
+		}
+
+		stage.labels {
+			values = {level = ""}
+		}
+	}
+}
+
+loki.write "loki" {
+	endpoint {
+		url = "http://loki:3100/loki/api/v1/push"
+	}
+}

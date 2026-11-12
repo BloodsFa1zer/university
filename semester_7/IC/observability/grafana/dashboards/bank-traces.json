@@ -1,0 +1,226 @@
+{
+  "id": null,
+  "uid": "bank-traces",
+  "title": "Трейси",
+  "description": "Трейси переказів з Tempo: повільні, невдалі, з повторами.",
+  "tags": [
+    "bankmonitor"
+  ],
+  "timezone": "browser",
+  "editable": false,
+  "graphTooltip": 1,
+  "refresh": "5s",
+  "schemaVersion": 39,
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": [
+      "5s",
+      "10s",
+      "30s",
+      "1m"
+    ]
+  },
+  "links": [
+    {
+      "type": "dashboards",
+      "tags": [
+        "bankmonitor"
+      ],
+      "title": "BankMonitor",
+      "asDropdown": false,
+      "includeVars": false,
+      "keepTime": true,
+      "targetBlank": false
+    }
+  ],
+  "templating": {
+    "list": []
+  },
+  "annotations": {
+    "list": []
+  },
+  "panels": [
+    {
+      "type": "table",
+      "title": "Повільні перекази",
+      "description": "Обробка переказу довша за 500 мс.",
+      "datasource": {
+        "type": "tempo",
+        "uid": "tempo"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Немає трейсів"
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "tempo",
+            "uid": "tempo"
+          },
+          "queryType": "traceql",
+          "query": "{ resource.service.name = \"worker\" && name = \"worker.process_transfer\" && duration > 500ms }",
+          "limit": 20,
+          "spss": 3,
+          "tableType": "traces"
+        }
+      ],
+      "id": 1
+    },
+    {
+      "type": "table",
+      "title": "Невдалі перекази",
+      "description": "Перекази зі статусом failed (брак коштів або вичерпані повтори).",
+      "datasource": {
+        "type": "tempo",
+        "uid": "tempo"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Немає трейсів"
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "tempo",
+            "uid": "tempo"
+          },
+          "queryType": "traceql",
+          "query": "{ span.bank.status = \"failed\" }",
+          "limit": 20,
+          "spss": 3,
+          "tableType": "traces"
+        }
+      ],
+      "id": 2
+    },
+    {
+      "type": "table",
+      "title": "Перекази з повторами",
+      "description": "Перекази, повторені після взаємного блокування.",
+      "datasource": {
+        "type": "tempo",
+        "uid": "tempo"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 9,
+        "w": 12,
+        "h": 9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Немає трейсів"
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "tempo",
+            "uid": "tempo"
+          },
+          "queryType": "traceql",
+          "query": "{ span.bank.attempts > 1 }",
+          "limit": 20,
+          "spss": 3,
+          "tableType": "traces"
+        }
+      ],
+      "id": 3
+    },
+    {
+      "type": "table",
+      "title": "Спани з помилками",
+      "description": "Спани зі статусом error: технічні збої, помилки SQL.",
+      "datasource": {
+        "type": "tempo",
+        "uid": "tempo"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 9,
+        "w": 12,
+        "h": 9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Немає трейсів"
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "tempo",
+            "uid": "tempo"
+          },
+          "queryType": "traceql",
+          "query": "{ status = error }",
+          "limit": 20,
+          "spss": 3,
+          "tableType": "traces"
+        }
+      ],
+      "id": 4
+    },
+    {
+      "type": "text",
+      "title": "Корисні запити TraceQL",
+      "gridPos": {
+        "x": 0,
+        "y": 18,
+        "w": 24,
+        "h": 8
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "Запити TraceQL для вкладки **Explore → Tempo**:\n\n```\n{ resource.service.name = \"worker\" && name = \"worker.process_transfer\" && duration > 700ms }\n{ span.bank.attempts > 1 }\n{ span.bank.status = \"failed\" && span.bank.fail_reason = \"insufficient_funds\" }\n```\n\nПерший знаходить повільні перекази (сценарій «Повільні запити»), другий — перекази,\nповторені після взаємного блокування, третій — відмови через брак коштів.\n"
+      },
+      "id": 5
+    }
+  ]
+}

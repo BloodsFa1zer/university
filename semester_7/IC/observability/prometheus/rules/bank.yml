@@ -1,0 +1,84 @@
+# Alerting rules of BankMonitor (docs/00-common.md §6.10). Checked with `promtool check rules`.
+groups:
+  - name: bank
+    rules:
+      - alert: PostgresDown
+        expr: pg_up == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "PostgreSQL недоступний"
+          description: >-
+            postgres_exporter не може підключитися до бази вже понад 30 секунд.
+            Дашборд «PostgreSQL», логи сервісу postgres.
+
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Ціль {{ $labels.job }} не відповідає"
+          description: >-
+            Prometheus не може зібрати метрики з {{ $labels.instance }} (job {{ $labels.job }})
+            понад хвилину. Сторінка цілей Prometheus, дашборд «BankMonitor — огляд».
+
+      - alert: TransferFailureRatioHigh
+        expr: >-
+          sum(rate(bank_transfers_processed_total{status="failed"}[1m]))
+          / sum(rate(bank_transfers_processed_total[1m])) > 0.2
+        for: 30s
+        labels:
+          severity: warning
+        annotations:
+          summary: "Забагато невдалих переказів"
+          description: >-
+            За останню хвилину невдалими були {{ $value | humanizePercentage }} переказів
+            (поріг 20 %). Дашборд «Застосунок: перекази», панель «Перекази за статусом і причиною».
+
+      - alert: TransferProcessingSlow
+        expr: >-
+          histogram_quantile(0.95,
+            sum by (le) (rate(bank_transfer_processing_seconds_bucket[1m]))) > 0.5
+        for: 30s
+        labels:
+          severity: warning
+        annotations:
+          summary: "Перекази обробляються повільно"
+          description: >-
+            95-й перцентиль часу обробки переказу — {{ $value | humanizeDuration }}
+            (поріг 0,5 с). Дашборд «Застосунок: перекази», трейси повільних переказів.
+
+      - alert: DeadlocksDetected
+        expr: increase(pg_stat_database_deadlocks{datname="bank"}[1m]) > 0
+        for: 0s
+        labels:
+          severity: warning
+        annotations:
+          summary: "У базі виникають взаємні блокування"
+          description: >-
+            За останню хвилину PostgreSQL перервав {{ $value | humanize }} транзакцій
+            через взаємне блокування. Дашборд «PostgreSQL», логи postgres («deadlock detected»).
+
+      - alert: LockWaiters
+        expr: bank_db_lock_waiters > 0
+        for: 30s
+        labels:
+          severity: warning
+        annotations:
+          summary: "Сесії чекають на блокування"
+          description: >-
+            {{ $value | humanize }} сесій бази bank чекають на блокування понад 30 секунд.
+            Дашборд «PostgreSQL», панель «Сесії, що чекають блокування».
+
+      - alert: QueueBacklog
+        expr: rabbitmq_queue_messages_ready{queue="transfers.requested"} > 200
+        for: 30s
+        labels:
+          severity: warning
+        annotations:
+          summary: "Черга переказів росте"
+          description: >-
+            У черзі transfers.requested {{ $value | humanize }} повідомлень чекають на worker.
+            Дашборд «RabbitMQ».

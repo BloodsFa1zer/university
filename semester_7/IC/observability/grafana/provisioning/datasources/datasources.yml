@@ -1,0 +1,53 @@
+# Data sources of BankMonitor (docs/00-common.md §6.13). Read once at start:
+# after a change here restart the container (G23).
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      timeInterval: 5s
+      httpMethod: POST
+      # A point of a histogram carries trace_id: clicking it opens the trace (§6.12).
+      exemplarTraceIdDestinations:
+        - name: trace_id
+          datasourceUid: tempo
+
+  - name: Loki
+    uid: loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    editable: false
+    jsonData:
+      maxLines: 1000
+      # "trace_id": "…" in a JSON log line becomes a link to the trace.
+      # A doubled dollar keeps Grafana's own placeholder from environment expansion.
+      derivedFields:
+        - name: trace_id
+          matcherRegex: '"trace_id": ?"(\w+)"'
+          datasourceUid: tempo
+          url: "$${__value.raw}"
+          urlDisplayLabel: Відкрити трейс
+
+  - name: Tempo
+    uid: tempo
+    type: tempo
+    access: proxy
+    url: http://tempo:3200
+    editable: false
+    jsonData:
+      # From a span to the log lines that carry its trace_id.
+      tracesToLogsV2:
+        datasourceUid: loki
+        spanStartTimeShift: "-5m"
+        spanEndTimeShift: "5m"
+        filterByTraceID: true
+        filterBySpanID: false
+        customQuery: true
+        query: '{service=~".+"} |= "$${__trace.traceId}"'

@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bankmon-common"
+version = "0.1.0"
+description = "Shared helpers for BankMonitor services: config, JSON logging, metrics"
+requires-python = ">=3.13"
+dependencies = [
+    "prometheus-client==0.26.0",
+]
+
+[tool.setuptools]
+packages = ["bankmon_common"]

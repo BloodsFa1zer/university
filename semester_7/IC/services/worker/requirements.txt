@@ -1,0 +1,7 @@
+psycopg[binary]==3.3.8
+pika==1.4.4
+prometheus-client==0.26.0
+opentelemetry-sdk==1.45.2
+opentelemetry-exporter-otlp-proto-grpc==1.45.2
+opentelemetry-instrumentation-psycopg==0.66b2
+opentelemetry-instrumentation-pika==0.66b2
