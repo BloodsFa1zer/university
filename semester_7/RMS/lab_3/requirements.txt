@@ -1,0 +1,5 @@
+numpy>=2.0
+pillow>=10.0
+matplotlib>=3.8
+scikit-image>=0.22  # лише SSIM і тестові зображення; DCT/DWT — власна реалізація
+# scipy — лише в одному тесті для звірки DCT (встановлюється разом зі scikit-image)
